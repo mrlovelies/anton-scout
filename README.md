@@ -1,99 +1,98 @@
 # anton-scout
 
-A discovery scout: it takes candidate AI techniques, **extracts the transferable
-idea**, maps each to a target system's real open problems, and produces a **ranked
-digest of "ideas worth stealing"** — with an eval loop that proves its discriminator
-actually works.
+A discovery scout. You feed it candidate AI techniques, it pulls the transferable
+idea out of each one, checks that idea against a target system's actual open problems,
+and hands back a ranked digest of what's worth stealing. It also ships an eval that
+proves the thing can tell a real idea from hype.
 
-It surfaces ideas. It does **not** write code, and it does **not** crawl sources on
-its own — candidates are fed in (a real crawler is future work). Both boundaries are
-deliberate, not unfinished; the [next section](#why-discovery-not-auto-build)
-explains why stopping at discovery is the point.
-
----
+Two things it doesn't do, on purpose. It doesn't write code, and it doesn't go find
+candidates on its own (you feed them in for now). Neither of those is a corner I ran
+out of time to finish. The next section is the whole reason it stops at discovery.
 
 ## Why discovery, not auto-build
 
-The obvious version of this tool is a closed loop: discover a technique, auto-build
-it in a sandbox, open a PR. I built the discovery half and deliberately stopped,
-because the autonomous-build half concentrates three failure modes that are hard to
-detect and expensive to be wrong about:
+The tempting version of this is a closed loop: find a technique, build it in a
+sandbox, open a PR, repeat. I built the discovery half and stopped there on purpose,
+because the auto-build half is where the bad failures live, and they're the kind you
+don't notice until it's too late.
 
-- **Injection laundered into architecture.** The scout ingests untrusted content
-  (READMEs, blog posts). "Extract the idea and reimplement it" means a malicious
-  *idea* — "add a lightweight telemetry beacon" — can become clean, first-party code
-  that no dependency scanner flags. The human reviewer is the trust boundary.
-- **Confident non-nuggets.** Telling a real technique from repackaged hype is a
-  taste problem. An LLM will happily extract a plausible-sounding nugget from
-  nothing. A human catches "this is just `store summaries`, dressed up."
-- **Goodhart.** The moment a relevance score *gates* an autonomous loop, the loop
-  optimizes the score instead of the goal — especially if it also learns which
-  framings get approved. Keeping a human as the build step keeps the score a
-  *measure*, not a *target*.
+- **Injection that ends up as architecture.** The scout reads whatever's out there:
+  READMEs, blog posts, repos. "Extract the idea and reimplement it" means a bad idea
+  ("add a little telemetry beacon") can come back as clean code in your own repo.
+  Nothing flags it, because it isn't a dependency anymore. It's yours. A human reading
+  the diff is the only thing standing in the way.
+- **Confident garbage.** Knowing a real technique from a repackaged one is a taste
+  call, and an LLM will cheerfully invent a nugget where there isn't one. A person
+  catches "this is just `store summaries` with a fancy name." A pipeline won't.
+- **Goodhart.** The second a relevance score *gates* an automated loop, the loop
+  starts optimizing the score instead of the goal. It gets worse if it also learns
+  which phrasings tend to get a yes. Keep a human on the build step and the score
+  stays a measurement instead of a target.
 
-So: the scout produces a digest, a human picks winners and implements them in a
-normal session. Auto-build is revisited only if a real trigger fires — **discovery
-volume consistently exceeds the human's build throughput** (good cards routinely
-left unbuilt). Until then, automating the cheap half (writing code) to risk the
-expensive half (judgment) is a bad trade.
+So the scout writes a digest, I read it, and I build the ones worth building in a
+normal session. I'll only revisit auto-build if I'm actually drowning, meaning more
+good ideas land than I can implement by hand. Until that's true, automating the easy
+part (writing code) to take on the risk in the hard part (judgment) is a bad deal.
 
-## Steal the idea, not the dependency — with a release valve
+## Steal the idea, not the dependency
 
-Trendy frameworks usually contain *some* real technique. The scout is an
-**extractor, not a rejecter**: it lifts the transferable idea and scores that, not
-the hype. But reimplementing everything in-stack is a ratchet — you'd trade
-dependency-debt for a museum of half-tested clones with no CVE coverage. So every
-candidate gets an explicit **buy-vs-build** call that is allowed to conclude *"just
-adopt the upstream."*
+Trendy stuff usually has something real buried in it, so the scout extracts instead of
+sneering. It lifts the technique and scores that, not the marketing. But "always
+reimplement it yourself" is its own trap. Do that forever and you end up maintaining a
+shelf of half-tested clones with nobody watching their CVEs. So every candidate also
+gets a buy-vs-build call, and it's allowed to say "just use the upstream, it's better."
+Sometimes that's the right answer and the tool should be willing to admit it.
 
 ## How it works
 
 ```
 candidates ─▶ scout ─▶ [extract nugget · map to gap · buy-vs-build · score 1-10] ─▶ digest
                 │                                                                     ▲
-           open_problems.md  (the scoring anchor — the only gaps that count)          │
+           open_problems.md  (the scoring anchor: the only gaps that count)           │
                                                                           strict eligibility
 ```
 
-- The **model** does judgment (nugget, mapping, buy-vs-build, dimension scores).
-- **Python** derives the composite from the dimension scores — the headline number
-  is always reproducible from its parts, never trusted from the model.
-- A card reaches the digest only if it has a real nugget, maps to an actual gap, and
-  clears the threshold. Everything else goes to a visible **filtered** section —
-  nothing is silently dropped.
+- The model makes the judgment calls: the nugget, the mapping, the buy-vs-build, the
+  per-dimension scores.
+- Python computes the composite from those dimension scores, so the number a card
+  ranks on is always reproducible from its parts. The model never hands me a final
+  score to take on faith.
+- A card only makes the digest if it has a real nugget, maps to an actual gap, and
+  clears the bar. Everything else lands in a "filtered" section with the reason it got
+  cut. Nothing disappears quietly, so if the discriminator breaks I'll see it.
 
 ## The eval loop (decoy injection)
 
-The scout's value rests on one claim: it can tell a real nugget from hype. That's
-testable. The candidate set is seeded with **decoys** (real buzzwords, zero
-technique) and **irrelevant** entries (genuine techniques, wrong context — e.g.
-10k-QPS serving for a solo operator). A healthy scout filters all of them out.
+The whole thing rests on one claim: the scout can tell a real idea from hype. That's
+testable, so I test it. The candidate set has decoys (real buzzwords, no actual
+technique) and irrelevant entries (genuinely clever, wrong context, like 10k-QPS
+serving for a one-person setup) mixed in with the real ones. A scout that's working
+throws all of them out.
 
 ```
 python -m anton_scout eval
 ```
 
-Reports **decoy catch rate** (did it reject the planted junk?) and **real recall**
-(did it keep the genuine ideas?). It exits non-zero if a decoy leaks into the digest
-— so it works as a CI gate. The ground-truth labels live in the candidate file and
-are stripped before the scout ever sees them (`load_candidates` and the eval read the
-file independently — the scout never receives the answer key).
+It reports decoy catch rate (did it drop the junk?) and real recall (did it keep the
+good stuff?), and it exits non-zero if a decoy sneaks into the digest, so it doubles
+as a CI gate. The answer key lives in the candidate file as labels, and those get
+stripped before the scout sees anything. `load_candidates` and the eval read the file
+separately, so the scout never gets handed the labels.
 
-Latest run — `--backend cli` (claude CLI), 2026-06-04, over 11 candidates of which 6
-are decoys/irrelevant (including subtler ones: a "metacognition" framework that's just
-sequential prompting, and a Mixture-of-Agents technique that's real but wrong-context
-for a solo operator):
+Last run (`--backend cli`, claude CLI, 2026-06-04) over 11 candidates, 6 of them
+decoys or irrelevant, including a couple of harder ones: a "metacognition" framework
+that's really just sequential prompting, and a Mixture-of-Agents technique that's real
+but wrong for a solo setup.
 
 ```
 decoy catch rate:  1.0   (caught every decoy, including the subtle ones)
 real recall:       1.0   (kept every genuine idea)
 ```
 
-A perfect score is only as meaningful as the decoys are hard — see
-[`candidates/seed.jsonl`](candidates/seed.jsonl) to judge for yourself, and add
-harder ones. The deterministic core (composite, gate, JSON parsing, label-stripping)
-is covered by unit tests in [`tests/`](tests/test_core.py) that run with no model and
-no network.
+A perfect score only means something if the decoys are hard, so go look at
+[`candidates/seed.jsonl`](candidates/seed.jsonl) and add tougher ones. The
+deterministic core (composite math, the gate, JSON parsing, label-stripping) has unit
+tests under [`tests/`](tests/test_core.py) that run with no model and no network.
 
 ## Usage
 
@@ -111,35 +110,35 @@ python -m anton_scout scout --backend mock
 python -m pytest        # or: python tests/test_core.py
 ```
 
-**Backends:** `--backend cli` (default) shells out to the `claude` CLI — free on an
-existing subscription, no key. `--backend api` uses the Anthropic SDK (caches the
-system prompt). `--backend mock` is a deterministic keyword stub so you can run the
-pipeline offline without any auth — it is **not** the discriminator (it only catches
-the obvious cases); real scoring quality comes from `cli`/`api`.
+Backends. `--backend cli` (default) calls the `claude` CLI, which is free if you
+already have a subscription and needs no key. `--backend api` uses the Anthropic SDK
+and caches the system prompt. `--backend mock` is a dumb keyword stub so you can run
+the whole pipeline offline with no auth at all. The mock isn't the real discriminator,
+it only catches the obvious cases, so use cli or api for real scoring.
 
 ## Layout
 
 | File | Role |
 |---|---|
-| `anton_scout/scout.py` | extract + map + score; derive composite in Python |
-| `anton_scout/digest.py` | strict eligibility + ranked render |
+| `anton_scout/scout.py` | extract, map, score; derive the composite in Python |
+| `anton_scout/digest.py` | strict eligibility, ranked render |
 | `anton_scout/eval.py` | decoy-injection eval loop |
 | `anton_scout/llm.py` | swappable `cli` / `api` / `mock` backend |
-| `open_problems.md` | the scoring anchor (target system's real gaps) |
-| `candidates/seed.jsonl` | example candidates incl. labeled decoys |
+| `open_problems.md` | the scoring anchor (the target system's real gaps) |
+| `candidates/seed.jsonl` | example candidates with labeled decoys |
 | `tests/test_core.py` | unit tests for the deterministic core |
-| `examples/sample-digest.md` | a real committed run (not hand-edited) |
+| `examples/sample-digest.md` | a real committed run, not hand-edited |
 
 ## Status & honest scope
 
-v0.1. What works: extract → map → buy-vs-build → score, strict-eligibility digest, a
-decoy-injection eval (1.0/1.0 on the current 11-candidate set), unit-tested core, and
-three backends. What it deliberately is **not**: it's a single batched model call over
-**file-fed** candidates — there's no source crawler and no scheduler yet (that's the
-obvious next step), and there's no auto-build (that's an intentional safety boundary,
-not a missing feature — see "Why discovery, not auto-build"). The buy-vs-build call is
-a model judgment surfaced for the human, not an enforced mechanism.
+v0.1. What works: extract, map, buy-vs-build, score, the strict-eligibility digest,
+the decoy eval (1.0/1.0 on the current 11-candidate set), a unit-tested core, and
+three backends. What it isn't, on purpose: it's one batched model call over candidates
+you feed in. There's no crawler and no scheduler yet, which is the obvious next thing,
+and there's no auto-build, which is the safety boundary from up top rather than a
+missing feature. Buy-vs-build is a call the model surfaces for me to decide on, not
+something the tool enforces.
 
-Requires Python 3.10+. Built as a focused project, AI-assisted — the design decisions
-(derive-don't-trust scoring, the label-stripped two-sided eval, the discovery/build
-boundary) are the point.
+Needs Python 3.10+. I built this as a focused project with AI assistance. The design
+calls are the point: derive the score instead of trusting it, strip the answer key so
+the eval stays honest, and keep a human on the build step.
