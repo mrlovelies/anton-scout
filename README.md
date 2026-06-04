@@ -1,11 +1,14 @@
 # anton-scout
 
-An autonomous discovery scout: it reads emerging AI techniques, **extracts the
-transferable idea**, maps each to a target system's real open problems, and produces
-a **ranked digest of "ideas worth stealing"** — with an eval loop that proves its
-discriminator actually works.
+A discovery scout: it takes candidate AI techniques, **extracts the transferable
+idea**, maps each to a target system's real open problems, and produces a **ranked
+digest of "ideas worth stealing"** — with an eval loop that proves its discriminator
+actually works.
 
-It surfaces ideas. It does **not** write code. That boundary is the whole design.
+It surfaces ideas. It does **not** write code, and it does **not** crawl sources on
+its own — candidates are fed in (a real crawler is future work). Both boundaries are
+deliberate, not unfinished; the [next section](#why-discovery-not-auto-build)
+explains why stopping at discovery is the point.
 
 ---
 
@@ -73,7 +76,24 @@ python -m anton_scout eval
 Reports **decoy catch rate** (did it reject the planted junk?) and **real recall**
 (did it keep the genuine ideas?). It exits non-zero if a decoy leaks into the digest
 — so it works as a CI gate. The ground-truth labels live in the candidate file and
-are stripped before the scout ever sees them.
+are stripped before the scout ever sees them (`load_candidates` and the eval read the
+file independently — the scout never receives the answer key).
+
+Latest run — `--backend cli` (claude CLI), 2026-06-04, over 11 candidates of which 6
+are decoys/irrelevant (including subtler ones: a "metacognition" framework that's just
+sequential prompting, and a Mixture-of-Agents technique that's real but wrong-context
+for a solo operator):
+
+```
+decoy catch rate:  1.0   (caught every decoy, including the subtle ones)
+real recall:       1.0   (kept every genuine idea)
+```
+
+A perfect score is only as meaningful as the decoys are hard — see
+[`candidates/seed.jsonl`](candidates/seed.jsonl) to judge for yourself, and add
+harder ones. The deterministic core (composite, gate, JSON parsing, label-stripping)
+is covered by unit tests in [`tests/`](tests/test_core.py) that run with no model and
+no network.
 
 ## Usage
 
@@ -83,11 +103,19 @@ python -m anton_scout scout --out digest.md
 
 # Run the discriminator eval
 python -m anton_scout eval
+
+# See the pipeline run with zero auth (deterministic offline stub)
+python -m anton_scout scout --backend mock
+
+# Unit tests for the deterministic core (no model, no network)
+python -m pytest        # or: python tests/test_core.py
 ```
 
 **Backends:** `--backend cli` (default) shells out to the `claude` CLI — free on an
 existing subscription, no key. `--backend api` uses the Anthropic SDK (caches the
-system prompt). Same interface either way.
+system prompt). `--backend mock` is a deterministic keyword stub so you can run the
+pipeline offline without any auth — it is **not** the discriminator (it only catches
+the obvious cases); real scoring quality comes from `cli`/`api`.
 
 ## Layout
 
@@ -96,12 +124,22 @@ system prompt). Same interface either way.
 | `anton_scout/scout.py` | extract + map + score; derive composite in Python |
 | `anton_scout/digest.py` | strict eligibility + ranked render |
 | `anton_scout/eval.py` | decoy-injection eval loop |
-| `anton_scout/llm.py` | swappable `cli` / `api` backend |
+| `anton_scout/llm.py` | swappable `cli` / `api` / `mock` backend |
 | `open_problems.md` | the scoring anchor (target system's real gaps) |
 | `candidates/seed.jsonl` | example candidates incl. labeled decoys |
+| `tests/test_core.py` | unit tests for the deterministic core |
+| `examples/sample-digest.md` | a real committed run (not hand-edited) |
 
-## Status
+## Status & honest scope
 
-v0.1 — working scout + digest + eval. Single-prompt batch scoring; candidate sources
-are file-fed (a real source crawler is the obvious next step). Auto-build is
-intentionally absent (see above).
+v0.1. What works: extract → map → buy-vs-build → score, strict-eligibility digest, a
+decoy-injection eval (1.0/1.0 on the current 11-candidate set), unit-tested core, and
+three backends. What it deliberately is **not**: it's a single batched model call over
+**file-fed** candidates — there's no source crawler and no scheduler yet (that's the
+obvious next step), and there's no auto-build (that's an intentional safety boundary,
+not a missing feature — see "Why discovery, not auto-build"). The buy-vs-build call is
+a model judgment surfaced for the human, not an enforced mechanism.
+
+Requires Python 3.10+. Built as a focused project, AI-assisted — the design decisions
+(derive-don't-trust scoring, the label-stripped two-sided eval, the discovery/build
+boundary) are the point.
