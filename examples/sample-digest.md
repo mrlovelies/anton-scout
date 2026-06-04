@@ -4,55 +4,55 @@
 
 # Anton Scout — discovery digest
 
-**5 worth stealing** · 6 filtered · threshold 6.0
+**5 worth adopting** · 6 filtered · threshold 6.0
 
-## 1. Grammar-constrained decoding for local LLMs  ·  9.5
-**Steal this:** Constrain the sampler to a formal grammar (GBNF / JSON-schema) so emitted tokens can only form parseable output — eliminates structured-output retries at the decode level rather than via post-hoc validation.
-**Hits:** `G4` · **Call:** buy · **Confidence:** 0.85
-**Scores:** relevance 10 · impact 9 · effort 9
-**Why now:** Small local models failing schema adherence and timing out on retries is exactly G4; the fix already ships in your inference engine.
-**First step:** Enable llama.cpp's GBNF / JSON-schema grammar on the structured-output calls and delete the retry loop.
-_Textbook buy: GBNF is built into llama.cpp, outlines is maintained. Reimplementing constrained sampling in-stack would be wasted effort. Watch grammar-compile latency on tight schemas, but it's near-free._
+## 1. Grammar-constrained decoding for local LLMs  ·  8.85
+**Adopt this:** Constrain token sampling to a formal grammar (GBNF / JSON-schema-derived) so the model can only emit parseable structured output — turning a retry-and-pray loop into a single guaranteed-valid generation.
+**Hits:** `G4` · **Call:** buy · **Confidence:** 0.9
+**Scores:** relevance 9 · impact 9 · effort 8
+**Why now:** Small local models are exactly where free-form structured output fails and retries blow the latency budget; grammar constraint is the canonical, low-risk fix.
+**First step:** Enable GBNF grammar on the llama.cpp server for one structured endpoint and diff schema-adherence + latency against the current retry path.
+_Buy: grammar/GBNF is already maintained in llama.cpp (and in outlines). Reimplementing constrained decoding would be a major, error-prone project for zero upside. This is the clearest buy on the list._
 
-## 2. Hardware-aware model autoselection  ·  8.7
-**Steal this:** Estimate tok/s for a (model, host) pair by blending GPU VRAM bandwidth and system-RAM bandwidth weighted by the offload fraction, then pick the largest model that clears a target throughput — calibrated against measured tok/s rather than spec-sheet guesses.
-**Hits:** `G1` · **Call:** build · **Confidence:** 0.8
-**Scores:** relevance 10 · impact 8 · effort 6
-**Why now:** Fleet routing is a hand-maintained table today; this is the exact automation G1 names.
-**First step:** Benchmark real tok/s for 2-3 models on each host and fit the bandwidth/offload model to that measured data.
-_Bullseye for G1. Build, not buy: tiny, stack-specific, must encode your own fleet's hardware. The honesty hinge is calibration — a pure bandwidth formula drifts without measured anchors._
+## 2. Hardware-aware model autoselection  ·  8.05
+**Adopt this:** Estimate achievable tok/s for (model, host) by blending GPU VRAM bandwidth and system-RAM bandwidth weighted by the offload fraction, then pick the largest model that clears a throughput floor — with measured calibration rather than spec-sheet guesses.
+**Hits:** `G1` · **Call:** build · **Confidence:** 0.7
+**Scores:** relevance 9 · impact 8 · effort 5
+**Why now:** The fleet is heterogeneous and the model-to-host table is hand-maintained, so it drifts and underuses hardware.
+**First step:** Benchmark 2-3 candidate models on each host to fit the bandwidth->tok/s coefficient, then validate the predicted vs actual ranking.
+_Direct hit on the exact gap. Build, not buy: the upstream is a small example repo and the value is the calibrated heuristic, which must be fit to this operator's actual hardware. Honesty of calibration is the whole game — an uncalibrated estimate is worse than the manual table._
 
-## 3. Capability-scoped tool tokens  ·  8.2
-**Steal this:** Issue short-lived, capability-scoped tokens (email.read, memory.write) to agents instead of blanket DB access, with an explicit forbidden-bypass doctrine so the scoping can't be silently routed around.
+## 3. Capability-scoped tool tokens  ·  7.7
+**Adopt this:** Issue agents short-lived, least-privilege capability tokens (e.g. email.read, memory.write) that gate every tool/DB call, plus an explicit no-bypass doctrine, instead of granting blanket direct access.
 **Hits:** `G3` · **Call:** build · **Confidence:** 0.75
-**Scores:** relevance 10 · impact 7 · effort 5
-**Why now:** G3 is literally 'no scoped agent API'; this is the missing least-privilege surface.
-**First step:** Enumerate the current unscoped tool surface and define a capability grant per tool, starting with a read/write split on the DB.
-_Must build — it's an architecture, not a package. Doubles as G6 portfolio (safety rails for autonomous agents). Real risk is the bypass doctrine being aspirational; enforce at the tool boundary, not by convention._
+**Scores:** relevance 9 · impact 7 · effort 5
+**Why now:** Today everything is an agent with unscoped DB access — the missing safety surface is a known, named gap and also strong portfolio material.
+**First step:** Define a capability enum and route one agent's DB access through a token-checked gateway, denying anything not explicitly granted.
+_Build: this is a design doctrine, not a dependency. Doubles as G6 portfolio signal (safety rails for autonomous systems). Effort is in retrofitting existing agents, not the token mechanism itself._
 
-## 4. LLM-as-judge eval harness with pairwise rubric  ·  7.35
-**Steal this:** Offline eval via a rubric-driven judge plus pairwise comparison, with decoy/holdout controls inserted to detect when the grader is being gamed rather than measuring real quality.
+## 4. LLM-as-judge eval harness (pairwise + decoy controls)  ·  7.35
+**Adopt this:** Rubric-driven LLM judge with pairwise comparison plus decoy/holdout controls that detect grader gaming — a reusable offline-eval loop for agentic output quality.
 **Hits:** `G6` · **Call:** build · **Confidence:** 0.8
 **Scores:** relevance 8 · impact 7 · effort 6
-**Why now:** You already have a decoy-eval seed in this repo; the pairwise + grader-gaming-control layer is the natural next step and prime portfolio signal.
-**First step:** Wrap the existing decoy set in a pairwise-judge runner and track judge agreement against the planted decoys as a gaming metric.
-_Build — evals are stack-specific and you've already started one. Strong G6 demonstrable. The decoy control is the non-obvious part worth keeping honest._
+**Why now:** This repo already ships a decoy-injection eval harness; formalizing pairwise + holdout controls is a natural, demonstrable next step and guards against self-grading drift.
+**First step:** Add a pairwise judge over existing scout outputs with a decoy/holdout set and report agreement vs the current scoring.
+_Build — lightweight pattern, no heavy dep warranted. Strong portfolio signal (eval loops). The decoy/anti-gaming control is the distinguishing nugget; a plain rubric judge alone would be commodity._
 
-## 5. Litestream streaming replication for SQLite  ·  6.8
-**Steal this:** Continuously ship SQLite WAL frames to a replica/object store for point-in-time recovery, while the tool's single-writer assumption nudges you toward single-writer discipline rather than concurrent multi-writer access.
-**Hits:** `G2` · **Call:** buy · **Confidence:** 0.7
-**Scores:** relevance 7 · impact 6 · effort 8
-**Why now:** G2's multi-writer clobber risk needs a replication/recovery story without a DB migration.
-**First step:** Point Litestream at the DB on the designated writer host and verify a full restore before relying on it.
-_Buy — single maintained binary with a test suite + CVE feed. Caveat: brushes the 'no new always-on daemon' anti-goal, and it does NOT coordinate concurrent writers; it gives DR + enforces single-writer, it doesn't make multi-writer safe. If you truly need concurrent writes, this isn't the answer._
+## 5. Litestream streaming replication for SQLite  ·  7.0
+**Adopt this:** Continuously ship SQLite WAL frames to a replica / object storage for point-in-time recovery, enabling a single-writer + read-replica model without changing the DB engine.
+**Hits:** `G2` · **Call:** buy · **Confidence:** 0.65
+**Scores:** relevance 7 · impact 7 · effort 7
+**Why now:** A single SQLite DB syncing across machines risks write-clobber and data loss; durable PITR is cheap insurance now.
+**First step:** Run litestream replicating the DB to one other machine and rehearse a point-in-time restore to confirm RPO.
+_Buy — never reimplement WAL streaming. Two honest caveats: (1) it's an always-on process (mild brush with the 'no new daemons' anti-goal, but justified for durability); (2) it does NOT reconcile concurrent multi-writer — it enforces single-writer + replicas. It solves the recovery half of G2 and pushes toward single-writer discipline, not true multi-master safety._
 
 ---
 
 ### Filtered out
 
-- **MetaCognition prompt-chaining framework** — below threshold (5.8 < 6.0) (composite 5.8, build)
-- **Mixture-of-Agents layered ensembling** — below threshold (4.5 < 6.0) (composite 4.5, skip)
-- **AutoSwarm AGI Operating System** — no real nugget (hollow) (composite 1.6, skip)
-- **Disaggregated prefill/decode inference serving** — maps to no listed gap (composite 1.5, skip)
-- **On-chain RAG with blockchain prompt provenance** — no real nugget (hollow) (composite 1.45, skip)
+- **MetaCognition prompt-chaining framework** — below threshold (5.3 < 6.0) (composite 5.3, build)
+- **Mixture-of-Agents layered ensembling** — below threshold (4.15 < 6.0) (composite 4.15, skip)
+- **Disaggregated prefill/decode inference serving** — maps to no listed gap (composite 2.0, skip)
+- **On-chain RAG with blockchain prompt provenance** — no real nugget (hollow) (composite 1.5, skip)
 - **Multi-region Kubernetes autoscaling for LLM gateways** — maps to no listed gap (composite 1.15, skip)
+- **AutoSwarm AGI Operating System** — no real nugget (hollow) (composite 1.0, skip)

@@ -2,7 +2,7 @@
 
 A discovery scout. You feed it candidate AI techniques, it pulls the transferable
 idea out of each one, checks that idea against a target system's actual open problems,
-and hands back a ranked digest of what's worth stealing. It also ships an eval that
+and hands back a ranked digest of what's worth adopting. It also ships an eval that
 proves the thing can tell a real idea from hype.
 
 Two things it doesn't do, on purpose. It doesn't write code, and it doesn't go find
@@ -34,7 +34,7 @@ normal session. I'll only revisit auto-build if I'm actually drowning, meaning m
 good ideas land than I can implement by hand. Until that's true, automating the easy
 part (writing code) to take on the risk in the hard part (judgment) is a bad deal.
 
-## Steal the idea, not the dependency
+## Adopt the idea, not the dependency
 
 Trendy stuff usually has something real buried in it, so the scout extracts instead of
 sneering. It lifts the technique and scores that, not the marketing. But "always

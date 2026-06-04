@@ -6,7 +6,7 @@ one operator, a heterogeneous local GPU fleet, no team, no cloud-scale traffic.
 Relevance is judged for *that* operator — techniques that only pay off at large
 scale or for a team are not relevant here.
 
-## Governing principle: steal the idea, not the dependency — with a release valve
+## Governing principle: adopt the idea, not the dependency (with a release valve)
 
 Trendy frameworks usually have *some* real nugget worth extracting. So the scout is
 an **extractor, not a rejecter**: it lifts the transferable technique and scores

@@ -19,7 +19,7 @@ from . import llm
 WEIGHTS = {"relevance": 0.5, "impact": 0.35, "effort": 0.15}
 
 SYSTEM = """\
-You are a discovery scout. Your job is to find IDEAS WORTH STEALING for a specific
+You are a discovery scout. Your job is to find IDEAS WORTH ADOPTING for a specific
 target system, and to be ruthlessly honest about which candidates are hollow.
 
 You are given (1) the target system's OPEN-PROBLEMS doc — the only things it wants

@@ -39,7 +39,7 @@ def render_markdown(cards: list[dict], threshold: float = DEFAULT_THRESHOLD) -> 
     rejected = filtered_out(cards, threshold)
 
     out = ["# Anton Scout — discovery digest", ""]
-    out.append(f"**{len(eligible)} worth stealing** · {len(rejected)} filtered · "
+    out.append(f"**{len(eligible)} worth adopting** · {len(rejected)} filtered · "
                f"threshold {threshold}")
     out.append("")
 
@@ -49,7 +49,7 @@ def render_markdown(cards: list[dict], threshold: float = DEFAULT_THRESHOLD) -> 
         s = c["scores"]
         out += [
             f"## {i}. {c['name']}  ·  {c['composite']}",
-            f"**Steal this:** {c['nugget']}",
+            f"**Adopt this:** {c['nugget']}",
             f"**Hits:** `{c['mapped_problem']}` · **Call:** {c['buy_vs_build']} · "
             f"**Confidence:** {c['confidence']}",
             f"**Scores:** relevance {s['relevance']} · impact {s['impact']} · "
