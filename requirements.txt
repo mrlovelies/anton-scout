@@ -1,0 +1,5 @@
+# The default (cli) backend needs nothing beyond the Python standard library and
+# the `claude` CLI on your PATH — so this file is intentionally empty of hard deps.
+#
+# Only the optional `--backend api` path needs the Anthropic SDK. Install it with:
+#   pip install "anthropic>=0.40"
