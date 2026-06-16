@@ -1,5 +1,8 @@
 # anton-scout
 
+[![eval](https://github.com/mrlovelies/anton-scout/actions/workflows/eval.yml/badge.svg)](https://github.com/mrlovelies/anton-scout/actions/workflows/eval.yml)
+&nbsp;[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A discovery scout. You feed it candidate AI techniques, it pulls the transferable
 idea out of each one, checks that idea against a target system's actual open problems,
 and hands back a ranked digest of what's worth adopting. It also ships an eval that
@@ -79,17 +82,27 @@ as a CI gate. The answer key lives in the candidate file as labels, and those ge
 stripped before the scout sees anything. `load_candidates` and the eval read the file
 separately, so the scout never gets handed the labels.
 
-Last run (`--backend cli`, claude CLI, 2026-06-04) over 11 candidates, 6 of them
-decoys or irrelevant, including a couple of harder ones: a "metacognition" framework
-that's really just sequential prompting, and a Mixture-of-Agents technique that's real
-but wrong for a solo setup.
+Last run (`--backend cli`, claude CLI, 2026-06-15) over **27 candidates** — 16 of them
+decoys or irrelevant, including subtle ones: a "metacognition" framework that's really
+just sequential prompting, a Mixture-of-Agents technique that's real but wrong for a
+solo setup, and an RDMA KV-cache transfer that's real engineering but datacenter-scale.
 
 ```
-decoy catch rate:  1.0   (caught every decoy, including the subtle ones)
-real recall:       1.0   (kept every genuine idea)
+decoy catch rate:  1.0    (caught every one of the 16 decoys/irrelevant)
+real recall:       0.82   (kept 9 of 11 genuine ideas; dropped 2 as too marginal)
 ```
 
-A perfect score only means something if the decoys are hard, so go look at
+I'm reporting an imperfect score on purpose, because it's the honest one and it tells
+you the filter actually discriminates. The number that matters is **decoy catch = 1.0**:
+nothing hollow made it into the digest. The misses are on real recall — the filter erred
+*conservative*, dropping two genuine ideas (embedding-based contradiction surfacing,
+KV-cache quantization) as too marginal. For a tool whose job is "don't recommend hype,"
+a false-negative (skip a real idea) is the safe failure and a false-positive (recommend a
+decoy) is the dangerous one — so the failure landed on the right side. The
+`--backend mock` path is a deterministic keyword stub used by CI and the unit tests; the
+numbers above are a real-model run, not the mock.
+
+A score only means something if the decoys are hard, so go look at
 [`candidates/seed.jsonl`](candidates/seed.jsonl) and add tougher ones. The
 deterministic core (composite math, the gate, JSON parsing, label-stripping) has unit
 tests under [`tests/`](tests/test_core.py) that run with no model and no network.
@@ -132,8 +145,8 @@ it only catches the obvious cases, so use cli or api for real scoring.
 ## Status & honest scope
 
 v0.1. What works: extract, map, buy-vs-build, score, the strict-eligibility digest,
-the decoy eval (1.0/1.0 on the current 11-candidate set), a unit-tested core, and
-three backends. What it isn't, on purpose: it's one batched model call over candidates
+the decoy eval (1.0 decoy-catch / 0.82 real-recall on the current 27-candidate set),
+a unit-tested core, and three backends. What it isn't, on purpose: it's one batched model call over candidates
 you feed in. There's no crawler and no scheduler yet, which is the obvious next thing,
 and there's no auto-build, which is the safety boundary from up top rather than a
 missing feature. Buy-vs-build is a call the model surfaces for me to decide on, not
@@ -142,3 +155,7 @@ something the tool enforces.
 Needs Python 3.10+. I built this as a focused project with AI assistance. The design
 calls are the point: derive the score instead of trusting it, strip the answer key so
 the eval stays honest, and keep a human on the build step.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

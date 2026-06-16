@@ -1,0 +1,26 @@
+name: eval
+
+# Runs the decoy-injection eval on the offline mock backend — no auth, no
+# network, fully deterministic. It exercises the full harness (load → strip
+# labels → score → select → decoy-catch/recall) and the CI gate: the job fails
+# if any planted decoy leaks into the digest. The headline real-model numbers in
+# the README come from a separate `--backend cli` run; this proves the gate works.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit tests (deterministic core, no model)
+        run: python -m pytest -q
+      - name: Decoy-injection eval (mock backend — exits non-zero on a decoy leak)
+        run: python -m anton_scout eval --backend mock
