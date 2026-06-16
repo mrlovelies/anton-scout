@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install test deps
+        run: python -m pip install --upgrade pip pytest
       - name: Unit tests (deterministic core, no model)
         run: python -m pytest -q
       - name: Decoy-injection eval (mock backend — exits non-zero on a decoy leak)
