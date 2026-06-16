@@ -129,6 +129,14 @@ and caches the system prompt. `--backend mock` is a dumb keyword stub so you can
 the whole pipeline offline with no auth at all. The mock isn't the real discriminator,
 it only catches the obvious cases, so use cli or api for real scoring.
 
+## Run it as a skill
+
+[`skill/SKILL.md`](skill/SKILL.md) packages the scout as a Claude Code / Agent Skill, so
+you can run a discovery pass inline — "scout for local-LLM routing" — and have the agent
+gather candidates, score them against your open problems, and hand back the ranked digest,
+without leaving your session. It still stops at discovery; you keep the build step. Install
+by symlinking (or copying) `skill/` into `~/.claude/skills/scout`.
+
 ## Layout
 
 | File | Role |
