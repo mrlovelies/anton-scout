@@ -35,6 +35,17 @@ suite and CVE feed, beats a bespoke clone.
   safety rails for autonomous systems.
 - **G7 — Creative tooling.** Improvements to the operator's domain tools (audio /
   audition workflow): recording, processing, structured export.
+- **G8 — Token & cost budgeting across the tiered fleet.** Escalation from local
+  tiers (T1 Mistral 7B → T2 Qwen 14B on the heterogeneous fleet) to metered Claude
+  (T3) is unmanaged and now a live cost-exposure. There is no budget-aware routing,
+  no prompt/KV-cache reuse, no context compression — autonomous builds and daily
+  digests burn tokens unbounded, and small local nodes waste context re-sending
+  state. Want techniques to (a) cut tokens (caching, compression, right-size the
+  model to the task, local-first triage so cheap requests never reach T3) and (b)
+  route by an explicit cost/latency budget across nodes. Usage instrumentation just
+  landed but has no baseline yet. NOTE: G2 (multi-writer SQLite) is now substantially
+  addressed by the (a′) cockpit-reconcile engine — downrank pure SQLite-replication
+  candidates accordingly.
 
 ## Anti-goals (auto-downrank; never the recommendation)
 
