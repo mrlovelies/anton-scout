@@ -120,8 +120,10 @@ consistently-dropped reals, not a random handful.
   and auditing the labels is the open work. Skipping a real idea you'll see again is the
   safe way to fail; a decoy in your digest is the dangerous one.
 
-**Reproduce it without a key.** The scored cards from the committed self-consistency run are
-in the repo, so the eval recomputes offline against the held-out labels:
+**Reproduce it without a key.** The scored cards from a committed self-consistency run are in
+the repo (a `--samples 5` pass that folded the 4 calls which came back clean — one was flaky
+and dropped, which the sampler tolerates by design), so the eval recomputes offline against
+the held-out labels:
 
 ```
 python -m anton_scout eval --from-cache examples/real-run-27.json   # -> decoy 1.0 / recall 0.73
