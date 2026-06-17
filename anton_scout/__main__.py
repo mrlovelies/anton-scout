@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -33,15 +34,24 @@ def main(argv=None):
     ps = sub.add_parser("scout", help="produce a discovery digest")
     _common(ps)
     ps.add_argument("--out", type=Path, default=None, help="write digest markdown here")
+    ps.add_argument("--from-cache", type=Path, default=None,
+                    help="render the digest from a committed cards artifact (no model call)")
 
     pe = sub.add_parser("eval", help="run the decoy-injection eval")
     _common(pe)
+    pe.add_argument("--save", type=Path, default=None,
+                    help="record real-backend scored cards to a committed artifact")
+    pe.add_argument("--from-cache", type=Path, default=None,
+                    help="replay saved cards offline (no model) — reproduces the metrics")
 
     args = ap.parse_args(argv)
 
     if args.cmd == "scout":
-        cards = scout_mod.scout(args.problems, args.candidates, backend=args.backend,
-                                model=args.model, timeout=args.timeout)
+        if args.from_cache is not None:
+            cards = json.loads(args.from_cache.read_text())["cards"]
+        else:
+            cards = scout_mod.scout(args.problems, args.candidates, backend=args.backend,
+                                    model=args.model, timeout=args.timeout)
         md = digest_mod.render_markdown(cards, args.threshold)
         if args.out:
             args.out.write_text(md)
@@ -51,9 +61,17 @@ def main(argv=None):
         return 0
 
     if args.cmd == "eval":
-        result = eval_mod.run_eval(args.problems, args.candidates, backend=args.backend,
-                                   model=args.model, threshold=args.threshold,
-                                   timeout=args.timeout)
+        if args.from_cache is not None:
+            result = eval_mod.replay(args.candidates, args.from_cache, threshold=args.threshold)
+        else:
+            result = eval_mod.run_eval(args.problems, args.candidates, backend=args.backend,
+                                       model=args.model, threshold=args.threshold,
+                                       timeout=args.timeout)
+            if args.save is not None:
+                eval_mod.save_result(result, args.save,
+                                     meta={"backend": args.backend, "model": args.model,
+                                           "threshold": args.threshold},
+                                     threshold=args.threshold)
         print(eval_mod.format_report(result))
         # Non-zero exit if a decoy leaked — makes it CI-friendly.
         return 1 if result["leaked_decoys"] else 0

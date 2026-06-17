@@ -36,11 +36,10 @@ def _labels(candidates_path) -> dict:
     return labels
 
 
-def run_eval(open_problems_path, candidates_path, *, backend="cli", model=None,
-             threshold=digest.DEFAULT_THRESHOLD, timeout=300) -> dict:
-    labels = _labels(candidates_path)
-    cards = scout(open_problems_path, candidates_path,
-                  backend=backend, model=model, timeout=timeout)
+def score(cards: list[dict], labels: dict, *, threshold=digest.DEFAULT_THRESHOLD) -> dict:
+    """Score already-produced cards against held-out labels. Pure + deterministic:
+    the same computation whether the cards came from a live scout run or a committed
+    artifact — so a real run replays offline to the identical numbers."""
     eligible_ids = {c["id"] for c in digest.select_eligible(cards, threshold)}
 
     should_reject = {i for i, l in labels.items() if l in ("decoy", "irrelevant")}
@@ -60,6 +59,39 @@ def run_eval(open_problems_path, candidates_path, *, backend="cli", model=None,
         "dropped_reals": dropped,
         "cards": cards,
     }
+
+
+def run_eval(open_problems_path, candidates_path, *, backend="cli", model=None,
+             threshold=digest.DEFAULT_THRESHOLD, timeout=300) -> dict:
+    """Run the live scout, then score its cards against the held-out labels."""
+    labels = _labels(candidates_path)
+    cards = scout(open_problems_path, candidates_path,
+                  backend=backend, model=model, timeout=timeout)
+    return score(cards, labels, threshold=threshold)
+
+
+def save_result(result: dict, save_path, *, meta=None, threshold=digest.DEFAULT_THRESHOLD) -> None:
+    """Write the scored cards + metrics to a committed artifact for offline replay."""
+    payload = {
+        "meta": meta or {},
+        "threshold": threshold,
+        "metrics": {k: result[k] for k in
+                    ("n_candidates", "decoy_catch_rate", "real_recall",
+                     "leaked_decoys", "dropped_reals")},
+        "cards": result["cards"],
+    }
+    out = Path(save_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+
+
+def replay(candidates_path, cards_path, *, threshold=digest.DEFAULT_THRESHOLD) -> dict:
+    """Recompute the eval offline from committed cards — no model call. The recorded
+    scout outputs are scored against the labels (read fresh from the candidates file)
+    by the same `score()`, so a stranger reproduces the numbers with no key."""
+    labels = _labels(candidates_path)
+    data = json.loads(Path(cards_path).read_text())
+    return score(data["cards"], labels, threshold=threshold)
 
 
 def format_report(result: dict) -> str:

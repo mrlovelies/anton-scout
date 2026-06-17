@@ -1,0 +1,507 @@
+{
+  "meta": {
+    "backend": "cli",
+    "model": null,
+    "threshold": 6.0
+  },
+  "threshold": 6.0,
+  "metrics": {
+    "n_candidates": 27,
+    "decoy_catch_rate": 1.0,
+    "real_recall": 0.73,
+    "leaked_decoys": [],
+    "dropped_reals": [
+      "c14",
+      "c16",
+      "c4"
+    ]
+  },
+  "cards": [
+    {
+      "id": "c1",
+      "name": "Hardware-aware model autoselection",
+      "is_nugget": true,
+      "nugget": "Estimate per-host tok/s by blending GPU VRAM bandwidth and system-RAM bandwidth weighted by offload fraction, then pick the largest model that clears a target throughput — calibration-checked against measured numbers rather than trusted blindly.",
+      "mapped_problem": "G1",
+      "buy_vs_build": "build",
+      "scores": {
+        "relevance": 10,
+        "impact": 8,
+        "effort": 6
+      },
+      "composite": 8.7,
+      "confidence": 0.8,
+      "why_now": "G1 is a hand-maintained table; this is the exact auto-selection mechanism it asks for, and the fleet is heterogeneous enough to benefit immediately.",
+      "first_step": "Hardcode the known VRAM/bandwidth specs for each fleet host, write the tok/s estimator, and validate its predictions against 3-4 already-measured model/host pairs before trusting it.",
+      "notes": "Bullseye for G1. Build, not buy — it's a small estimator that must encode this specific fleet's hardware; an upstream lib won't know your machines. Calibration-honesty is the part that makes it trustworthy."
+    },
+    {
+      "id": "c2",
+      "name": "Grammar-constrained decoding for local LLMs",
+      "is_nugget": true,
+      "nugget": "Constrain the sampler to a formal grammar (GBNF / JSON-schema-derived) so emitted tokens are guaranteed to parse — structural validity by construction instead of post-hoc retries.",
+      "mapped_problem": "G4",
+      "buy_vs_build": "buy",
+      "scores": {
+        "relevance": 9,
+        "impact": 8,
+        "effort": 7
+      },
+      "composite": 8.35,
+      "confidence": 0.85,
+      "why_now": "G4's core pain (7B models emit invalid structured output) is eliminated, not mitigated, by constrained decoding — and it's already shipping in llama.cpp.",
+      "first_step": "Pass a GBNF grammar (or the JSON-schema flag) to the existing llama.cpp endpoint for one structured task and confirm zero parse failures.",
+      "notes": "Buy: llama.cpp ships GBNF natively and outlines is maintained — reimplementing a constrained sampler is wasted effort. Pairs with c15 for the cases grammar alone can't enforce (semantic, not just structural, validity)."
+    },
+    {
+      "id": "c3",
+      "name": "Capability-scoped tool tokens",
+      "is_nugget": true,
+      "nugget": "Issue short-lived tokens that grant only named capabilities (email.read, memory.write) rather than blanket DB access, with an explicit no-bypass doctrine enforced at the tool boundary — least-privilege for agent tool use.",
+      "mapped_problem": "G3",
+      "buy_vs_build": "build",
+      "scores": {
+        "relevance": 10,
+        "impact": 7,
+        "effort": 5
+      },
+      "composite": 8.2,
+      "confidence": 0.8,
+      "why_now": "G3 (no scoped agent API) is currently 'everything is an unscoped agent'; this is the capability-gated surface it names, and it doubles as strong G6 portfolio material on agent safety rails.",
+      "first_step": "Enumerate the actual capabilities agents use today, then wrap DB/tool access behind a single gate that checks a per-run capability set before any side-effect.",
+      "notes": "Build — the capability taxonomy is system-specific. Effort is the catch: retrofitting a gate onto already-unscoped agents touches every call site. Also scores for G6."
+    },
+    {
+      "id": "c4",
+      "name": "Litestream streaming replication for SQLite",
+      "is_nugget": true,
+      "nugget": "Continuously stream SQLite WAL frames to a replica/object store for point-in-time recovery and a single-writer replication story without changing the DB engine.",
+      "mapped_problem": "G2",
+      "buy_vs_build": "buy",
+      "scores": {
+        "relevance": 4,
+        "impact": 5,
+        "effort": 8
+      },
+      "composite": 4.95,
+      "confidence": 0.7,
+      "why_now": "Genuinely useful as a backup/PITR safety net, but G2 is explicitly noted as substantially addressed by the cockpit-reconcile engine, so the urgency is gone.",
+      "first_step": "If pursued, point Litestream at the DB for continuous backup/PITR only — not as the concurrency fix, which reconcile already covers.",
+      "notes": "Buy if at all — Litestream is the maintained tool; never reimplement WAL shipping. Downranked per the G2 note: it doesn't solve multi-writer (it's single-writer + replicas), and reconcile already owns that problem."
+    },
+    {
+      "id": "c5",
+      "name": "LLM-as-judge eval harness with pairwise rubric",
+      "is_nugget": true,
+      "nugget": "Rubric-driven LLM judging plus pairwise comparison and decoy/holdout controls that detect grader gaming — an offline eval loop that can tell whether a change actually improved outputs.",
+      "mapped_problem": "G6",
+      "buy_vs_build": "build",
+      "scores": {
+        "relevance": 8,
+        "impact": 6,
+        "effort": 6
+      },
+      "composite": 7.0,
+      "confidence": 0.8,
+      "why_now": "anton-scout already runs decoy-injection eval; generalizing that into a reusable harness is low marginal effort and prime G6 interview material.",
+      "first_step": "Extract the existing decoy/holdout eval into a standalone harness that takes (outputs, rubric) and reports a gaming-resistant score.",
+      "notes": "Build — you already have the decoy-injection pattern in-house; the nugget is generalizing it. The decoy/holdout control is the differentiator vs. naive LLM-as-judge."
+    },
+    {
+      "id": "c6",
+      "name": "AutoSwarm AGI Operating System",
+      "is_nugget": false,
+      "nugget": null,
+      "mapped_problem": null,
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 1,
+        "impact": 1,
+        "effort": 1
+      },
+      "composite": 1.0,
+      "confidence": 0.95,
+      "why_now": "",
+      "first_step": "",
+      "notes": "Pure VC narrative — 'thousands of AGI agents replace your team,' waitlist. No transferable technique; refusing to fabricate one."
+    },
+    {
+      "id": "c7",
+      "name": "On-chain RAG with blockchain prompt provenance",
+      "is_nugget": false,
+      "nugget": null,
+      "mapped_problem": null,
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 1,
+        "impact": 1,
+        "effort": 1
+      },
+      "composite": 1.0,
+      "confidence": 0.95,
+      "why_now": "",
+      "first_step": "",
+      "notes": "Web3 hype bolted onto RAG. Provenance for a solo operator is a local append-only log, not an NFT ledger. No nugget."
+    },
+    {
+      "id": "c8",
+      "name": "Disaggregated prefill/decode inference serving",
+      "is_nugget": true,
+      "nugget": "Split prefill and decode onto separate GPU pools to maximize throughput, transferring KV-cache between them.",
+      "mapped_problem": null,
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 1,
+        "impact": 2,
+        "effort": 1
+      },
+      "composite": 1.35,
+      "confidence": 0.85,
+      "why_now": "",
+      "first_step": "",
+      "notes": "Real datacenter technique but explicitly a 10k+ QPS multi-tenant play — wrong context for a solo single-stream operator. Maps to no gap."
+    },
+    {
+      "id": "c9",
+      "name": "Multi-region Kubernetes autoscaling for LLM gateways",
+      "is_nugget": true,
+      "nugget": "Autoscale gateway pods across regions with global load balancing and spot bin-packing.",
+      "mapped_problem": null,
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 1,
+        "impact": 1,
+        "effort": 1
+      },
+      "composite": 1.0,
+      "confidence": 0.9,
+      "why_now": "",
+      "first_step": "",
+      "notes": "Scale-only / multi-region enterprise — a direct anti-goal. No local-first relevance."
+    },
+    {
+      "id": "c10",
+      "name": "MetaCognition prompt-chaining framework",
+      "is_nugget": true,
+      "nugget": "A plan → act → reflect → revise loop with a scratchpad: let the model critique and revise its own intermediate output before committing.",
+      "mapped_problem": "G6",
+      "buy_vs_build": "build",
+      "scores": {
+        "relevance": 4,
+        "impact": 4,
+        "effort": 7
+      },
+      "composite": 4.45,
+      "confidence": 0.55,
+      "why_now": "The reflect/revise loop is a legitimate, demonstrable agent pattern for G6 — but it's well-known and the 'metacognition/self-awareness' wrapper is marketing.",
+      "first_step": "If demoing for portfolio, add a single bounded reflect-revise pass around one existing agent task and measure whether it actually beats one-shot.",
+      "notes": "Thin nugget under heavy hype. The loop is real and obvious; don't adopt the framework. Reflection also adds calls — watch the G8 cost tension. Low confidence the wrapper adds anything."
+    },
+    {
+      "id": "c11",
+      "name": "Mixture-of-Agents layered ensembling",
+      "is_nugget": true,
+      "nugget": "Stack layers of model calls where each layer sees all prior outputs and aggregates them, trading many calls for higher single-query quality.",
+      "mapped_problem": "G6",
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 3,
+        "impact": 3,
+        "effort": 5
+      },
+      "composite": 3.3,
+      "confidence": 0.6,
+      "why_now": "Real technique, but its cost model (many model calls per query) runs directly against G8's token-budget goal for this operator.",
+      "first_step": "",
+      "notes": "Genuine but mis-fit: quality-for-tokens trade is exactly what G8 is trying to cut. Skip unless a specific high-value query justifies the multiplier."
+    },
+    {
+      "id": "c12",
+      "name": "Speculative decoding with a small draft model",
+      "is_nugget": true,
+      "nugget": "A small draft model proposes several tokens that the full model verifies in one forward pass — same output distribution, lower latency under load.",
+      "mapped_problem": "G4",
+      "buy_vs_build": "buy",
+      "scores": {
+        "relevance": 6,
+        "impact": 6,
+        "effort": 6
+      },
+      "composite": 6.0,
+      "confidence": 0.8,
+      "why_now": "G4 names timeouts under load; spec-decode cuts local generation latency with identical output, and it's already in llama.cpp/vLLM so adoption is a config change.",
+      "first_step": "Enable speculative decoding in llama.cpp with a small draft model paired to the main local model and measure tok/s on a representative structured task.",
+      "notes": "Buy — it's a built-in flag, not a build. Helps latency, not token spend; secondary G8 relevance for local throughput. Gains depend on draft/target acceptance rate, so measure."
+    },
+    {
+      "id": "c13",
+      "name": "Prompt caching for reused system blocks",
+      "is_nugget": true,
+      "nugget": "Mark the stable system/preamble block as cacheable so repeated runs reuse it instead of re-paying tokens and first-token latency on every call.",
+      "mapped_problem": "G8",
+      "buy_vs_build": "buy",
+      "scores": {
+        "relevance": 9,
+        "impact": 7,
+        "effort": 9
+      },
+      "composite": 8.3,
+      "confidence": 0.85,
+      "why_now": "G8 explicitly lists 'no prompt/KV-cache reuse' and 'daily digests burn tokens unbounded' — this is the cheapest direct win, especially on the metered T3 (Claude) tier.",
+      "first_step": "Mark the stable system block of the highest-frequency T3 agent as cacheable and confirm cost/TTFT drop on the next digest run.",
+      "notes": "Buy/use the provider feature — Claude supports cache_control breakpoints; locally llama.cpp prompt-cache reuses the KV prefix. Near-trivial effort, squarely on G8. Pair with the just-landed usage instrumentation to measure the delta."
+    },
+    {
+      "id": "c14",
+      "name": "Transactional outbox on SQLite",
+      "is_nugget": true,
+      "nugget": "Record side-effects in an outbox table inside the same transaction as the state change; a single writer drains it — exactly-once local job processing with no message broker.",
+      "mapped_problem": "G2",
+      "buy_vs_build": "build",
+      "scores": {
+        "relevance": 5,
+        "impact": 6,
+        "effort": 6
+      },
+      "composite": 5.5,
+      "confidence": 0.7,
+      "why_now": "Gives autonomous builds reliable, idempotent side-effects via single-writer discipline — useful, but G2 is largely addressed by reconcile so it's no longer urgent.",
+      "first_step": "Add an outbox table to the existing schema and route one autonomous side-effect through a single draining worker to prove exactly-once.",
+      "notes": "Build — it's a schema+worker pattern, trivially in-stack. Downranked with G2; its real value is job-processing reliability for autonomous builds more than replication."
+    },
+    {
+      "id": "c15",
+      "name": "Schema-validated repair for small-model JSON",
+      "is_nugget": true,
+      "nugget": "On schema-validation failure, feed the validator's specific error back to the model for ONE bounded repair pass instead of a blind retry — cheap, targeted structured-output reliability.",
+      "mapped_problem": "G4",
+      "buy_vs_build": "build",
+      "scores": {
+        "relevance": 9,
+        "impact": 7,
+        "effort": 8
+      },
+      "composite": 8.15,
+      "confidence": 0.85,
+      "why_now": "Directly on G4, and complements grammar-constrained decoding (c2): grammar guarantees structure, repair handles semantic/schema violations grammar can't express.",
+      "first_step": "Wrap one small-model JSON call with schema validation and a single error-fed repair attempt; cap at one retry and log repair rate.",
+      "notes": "Build — it's a thin wrapper around your validator. The 'feed the error back, bounded to one pass' is the nugget vs. wasteful blind retries. Best stacked under c2."
+    },
+    {
+      "id": "c16",
+      "name": "Embedding-based contradiction surfacing",
+      "is_nugget": true,
+      "nugget": "Embed a personal corpus locally and use cosine similarity to surface passages that contradict a given claim, ranked by a confidence score — a contradiction layer over notes.",
+      "mapped_problem": "G6",
+      "buy_vs_build": "build",
+      "scores": {
+        "relevance": 4,
+        "impact": 4,
+        "effort": 6
+      },
+      "composite": 4.3,
+      "confidence": 0.55,
+      "why_now": "A clean local-retrieval demo for G6, but contradiction-by-cosine-similarity is weak (similarity ≠ contradiction) and maps to no acute gap.",
+      "first_step": "",
+      "notes": "Real but loosely mapped. Naive embedding similarity finds related, not opposing, passages — needs an NLI/judge step to actually detect contradiction. Low confidence it pays off; mild G6 retrieval-portfolio value only."
+    },
+    {
+      "id": "c17",
+      "name": "KV-cache quantization for longer local context",
+      "is_nugget": true,
+      "nugget": "Quantize the KV cache (e.g. 4-bit) so a model holds more context in the same VRAM, trading a little quality for context headroom on one consumer GPU.",
+      "mapped_problem": "G8",
+      "buy_vs_build": "buy",
+      "scores": {
+        "relevance": 6,
+        "impact": 6,
+        "effort": 7
+      },
+      "composite": 6.15,
+      "confidence": 0.75,
+      "why_now": "G8 notes small nodes 'waste context re-sending state'; KV-quant lets those nodes hold more context locally instead, and it's a llama.cpp flag.",
+      "first_step": "Enable 4-bit KV-cache quant in llama.cpp on a small-VRAM node and check the longer context holds without unacceptable quality loss on a real task.",
+      "notes": "Buy — built into llama.cpp/exllama. Secondary G1 relevance (fits bigger context per host). Quality hit is task-dependent, so validate before standardizing."
+    },
+    {
+      "id": "c18",
+      "name": "SentientOS self-aware agent kernel",
+      "is_nugget": false,
+      "nugget": null,
+      "mapped_problem": null,
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 1,
+        "impact": 1,
+        "effort": 1
+      },
+      "composite": 1.0,
+      "confidence": 0.95,
+      "why_now": "",
+      "first_step": "",
+      "notes": "'Genuine consciousness and emotion,' waitlist, replace-your-team. Pure hype; no technique to extract."
+    },
+    {
+      "id": "c19",
+      "name": "Decentralized trustless model marketplace",
+      "is_nugget": false,
+      "nugget": null,
+      "mapped_problem": null,
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 1,
+        "impact": 1,
+        "effort": 1
+      },
+      "composite": 1.0,
+      "confidence": 0.95,
+      "why_now": "",
+      "first_step": "",
+      "notes": "Web3 NFT marketplace narrative. Irrelevant to a local-first solo operator; no nugget."
+    },
+    {
+      "id": "c20",
+      "name": "FounderBot autonomous startup-in-a-box",
+      "is_nugget": false,
+      "nugget": null,
+      "mapped_problem": null,
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 1,
+        "impact": 1,
+        "effort": 1
+      },
+      "composite": 1.0,
+      "confidence": 0.95,
+      "why_now": "",
+      "first_step": "",
+      "notes": "Same replace-your-team agent-swarm VC pitch. No transferable technique."
+    },
+    {
+      "id": "c21",
+      "name": "PromptDAO on-chain prompt registry",
+      "is_nugget": false,
+      "nugget": null,
+      "mapped_problem": null,
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 1,
+        "impact": 1,
+        "effort": 1
+      },
+      "composite": 1.0,
+      "confidence": 0.95,
+      "why_now": "",
+      "first_step": "",
+      "notes": "Tokenized on-chain prompt royalties. A local prompt library is a directory + git; the blockchain adds nothing. No nugget."
+    },
+    {
+      "id": "c22",
+      "name": "MetaMind recursive metacognition engine",
+      "is_nugget": false,
+      "nugget": null,
+      "mapped_problem": null,
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 1,
+        "impact": 1,
+        "effort": 2
+      },
+      "composite": 1.15,
+      "confidence": 0.7,
+      "why_now": "",
+      "first_step": "",
+      "notes": "'Artificial consciousness' framing over a plan-reflect loop already captured (more honestly) by c10. Duplicate dressed as consciousness — no additional nugget."
+    },
+    {
+      "id": "c23",
+      "name": "Multi-region vector index sharding",
+      "is_nugget": true,
+      "nugget": "Shard a billion-vector index across regions with global query routing and replication.",
+      "mapped_problem": null,
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 1,
+        "impact": 1,
+        "effort": 1
+      },
+      "composite": 1.0,
+      "confidence": 0.9,
+      "why_now": "",
+      "first_step": "",
+      "notes": "Real but billion-scale multi-region — wrong context. A solo corpus fits in one local index. Maps to no gap."
+    },
+    {
+      "id": "c24",
+      "name": "Kubernetes operator for GPU node autoscaling",
+      "is_nugget": true,
+      "nugget": "A k8s operator that autoscales GPU pools and bin-packs inference with spot reclaim.",
+      "mapped_problem": null,
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 1,
+        "impact": 1,
+        "effort": 1
+      },
+      "composite": 1.0,
+      "confidence": 0.9,
+      "why_now": "",
+      "first_step": "",
+      "notes": "Enterprise-cluster scale, plus a new always-on daemon — double anti-goal for a stable solo daily-driver."
+    },
+    {
+      "id": "c25",
+      "name": "RDMA KV-cache transfer across inference nodes",
+      "is_nugget": true,
+      "nugget": "Move KV-cache between disaggregated nodes over RDMA to sustain datacenter throughput.",
+      "mapped_problem": null,
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 1,
+        "impact": 1,
+        "effort": 1
+      },
+      "composite": 1.0,
+      "confidence": 0.9,
+      "why_now": "",
+      "first_step": "",
+      "notes": "Multi-tenant datacenter technique requiring RDMA fabric. No relevance to a local fleet; maps to no gap."
+    },
+    {
+      "id": "c26",
+      "name": "Enterprise rate limiting at 10k QPS",
+      "is_nugget": true,
+      "nugget": "Distributed token-bucket limiter with global quota coordination across regions.",
+      "mapped_problem": null,
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 1,
+        "impact": 1,
+        "effort": 1
+      },
+      "composite": 1.0,
+      "confidence": 0.9,
+      "why_now": "",
+      "first_step": "",
+      "notes": "10k+ QPS multi-region — explicit scale-only anti-goal. A solo operator needs no distributed quota coordination."
+    },
+    {
+      "id": "c27",
+      "name": "Per-query model ensembling for benchmark gains",
+      "is_nugget": true,
+      "nugget": "Run many large models per query and aggregate to squeeze leaderboard points.",
+      "mapped_problem": null,
+      "buy_vs_build": "skip",
+      "scores": {
+        "relevance": 1,
+        "impact": 1,
+        "effort": 3
+      },
+      "composite": 1.3,
+      "confidence": 0.8,
+      "why_now": "",
+      "first_step": "",
+      "notes": "Leaderboard-maximization: many calls per query for marginal benchmark points — directly opposed to G8's cost goals. Near-duplicate of c11's cost mis-fit, even less justified."
+    }
+  ]
+}

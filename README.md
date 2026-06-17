@@ -82,25 +82,43 @@ as a CI gate. The answer key lives in the candidate file as labels, and those ge
 stripped before the scout sees anything. `load_candidates` and the eval read the file
 separately, so the scout never gets handed the labels.
 
-Last run (`--backend cli`, claude CLI, 2026-06-15) over **27 candidates** — 16 of them
-decoys or irrelevant, including subtle ones: a "metacognition" framework that's really
-just sequential prompting, a Mixture-of-Agents technique that's real but wrong for a
-solo setup, and an RDMA KV-cache transfer that's real engineering but datacenter-scale.
+A `--backend cli` run (claude CLI) over **27 candidates** — 16 of them decoys or
+irrelevant, including subtle ones: a "metacognition" framework that's really just
+sequential prompting, a Mixture-of-Agents technique that's real but wrong for a solo
+setup, and an RDMA KV-cache transfer that's real engineering but datacenter-scale:
 
 ```
 decoy catch rate:  1.0    (caught every one of the 16 decoys/irrelevant)
-real recall:       0.82   (kept 9 of 11 genuine ideas; dropped 2 as too marginal)
+real recall:       0.73   (kept 8 of 11 genuine ideas this run)
 ```
 
-I'm reporting an imperfect score on purpose, because it's the honest one and it tells
-you the filter actually discriminates. The number that matters is **decoy catch = 1.0**:
-nothing hollow made it into the digest. The misses are on real recall — the filter erred
-*conservative*, dropping two genuine ideas (embedding-based contradiction surfacing,
-KV-cache quantization) as too marginal. For a tool whose job is "don't recommend hype,"
-a false-negative (skip a real idea) is the safe failure and a false-positive (recommend a
-decoy) is the dangerous one — so the failure landed on the right side. The
-`--backend mock` path is a deterministic keyword stub used by CI and the unit tests; the
-numbers above are a real-model run, not the mock.
+**Run it again and the recall moves — and that's the honest part.** Across four live runs
+it ranged **0.55–0.73** (median ~0.69), while **decoy-catch stayed at 1.0 every single
+time**. The two numbers tell you different things, and the split is the whole point:
+
+- **Decoy-catch is the load-bearing number, and it's stable at 1.0** — across every run,
+  nothing hollow reached the digest. For a tool whose one job is "don't recommend hype,"
+  this is the number that has to hold, and it does.
+- **Recall is the guard number, and it honestly shows the cost.** The scout leans
+  *conservative*: it drops a stable handful of genuinely-real-but-marginal candidates every
+  run, and a couple more on stricter runs. A false-negative (skip a real idea you'll see
+  again) is the safe failure; a false-positive (a decoy in your digest) is the dangerous
+  one — so the error lands on the right side, by design. The recall variance is the real
+  limitation, and tightening it (calibrating the threshold, better borderline handling) is
+  the open work — not a number I'm going to round up.
+
+**Reproduce it without a key.** The scored cards from a real run are committed, so the eval
+recomputes offline against the held-out labels:
+
+```
+python -m anton_scout eval --from-cache examples/real-run-27.json   # -> decoy 1.0 / recall 0.73
+```
+
+The replay verifies the *scoring* (labels stripped, rates correctly derived), **not** a
+fresh model run — recall varies run-to-run as shown above, so regenerate with `--backend
+cli` to re-roll it. The `--backend mock` path CI uses is a deterministic keyword stub: it
+proves the **plumbing** (load → strip labels → score → gate), not the discrimination. The
+discrimination is the committed cli run above, which you can replay.
 
 A score only means something if the decoys are hard, so go look at
 [`candidates/seed.jsonl`](candidates/seed.jsonl) and add tougher ones. The
@@ -148,13 +166,14 @@ by symlinking (or copying) `skill/` into `~/.claude/skills/scout`.
 | `open_problems.md` | the scoring anchor (the target system's real gaps) |
 | `candidates/seed.jsonl` | example candidates with labeled decoys |
 | `tests/test_core.py` | unit tests for the deterministic core |
-| `examples/sample-digest.md` | a real committed run, not hand-edited |
+| `examples/real-run-27.json` | committed real-run scored cards (replay with `eval --from-cache`) |
+| `examples/sample-digest.md` | the digest rendered from that committed run |
 
 ## Status & honest scope
 
 v0.1. What works: extract, map, buy-vs-build, score, the strict-eligibility digest,
-the decoy eval (1.0 decoy-catch / 0.82 real-recall on the current 27-candidate set),
-a unit-tested core, and three backends. What it isn't, on purpose: it's one batched model call over candidates
+the decoy eval (decoy-catch 1.0 stable; real-recall 0.55–0.73 across runs on the current
+27-candidate set), a unit-tested core, and three backends. What it isn't, on purpose: it's one batched model call over candidates
 you feed in. There's no crawler and no scheduler yet, which is the obvious next thing,
 and there's no auto-build, which is the safety boundary from up top rather than a
 missing feature. Buy-vs-build is a call the model surfaces for me to decide on, not
