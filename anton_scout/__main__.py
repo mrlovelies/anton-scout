@@ -25,6 +25,9 @@ def _common(p):
     p.add_argument("--model", default=None)
     p.add_argument("--threshold", type=float, default=digest_mod.DEFAULT_THRESHOLD)
     p.add_argument("--timeout", type=int, default=300)
+    p.add_argument("--samples", type=int, default=1,
+                   help="self-consistency: run the model N times and fold the runs "
+                        "(median dimension scores, majority votes) to stabilize borderline cards")
 
 
 def main(argv=None):
@@ -51,7 +54,7 @@ def main(argv=None):
             cards = json.loads(args.from_cache.read_text())["cards"]
         else:
             cards = scout_mod.scout(args.problems, args.candidates, backend=args.backend,
-                                    model=args.model, timeout=args.timeout)
+                                    model=args.model, timeout=args.timeout, samples=args.samples)
         md = digest_mod.render_markdown(cards, args.threshold)
         if args.out:
             args.out.write_text(md)
@@ -66,7 +69,7 @@ def main(argv=None):
         else:
             result = eval_mod.run_eval(args.problems, args.candidates, backend=args.backend,
                                        model=args.model, threshold=args.threshold,
-                                       timeout=args.timeout)
+                                       timeout=args.timeout, samples=args.samples)
             if args.save is not None:
                 eval_mod.save_result(result, args.save,
                                      meta={"backend": args.backend, "model": args.model,

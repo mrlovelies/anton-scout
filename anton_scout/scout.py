@@ -9,9 +9,13 @@ from __future__ import annotations
 
 import json
 import re
+import sys
+from collections import Counter
 from pathlib import Path
+from statistics import median
 
 from . import llm
+from .digest import DEFAULT_THRESHOLD
 
 # Composite weights. Relevance dominates on purpose: a brilliant technique that
 # doesn't hit a real gap is noise. Effort is lightly weighted and inverted
@@ -135,17 +139,7 @@ def _build_prompt(open_problems: str, candidates: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def scout(open_problems_path, candidates_path, *, backend="cli", model=None,
-          timeout=300) -> list[dict]:
-    open_problems = Path(open_problems_path).read_text()
-    candidates = load_candidates(candidates_path)
-    prompt = _build_prompt(open_problems, candidates)
-
-    raw = llm.complete(prompt, system=SYSTEM, backend=backend, model=model, timeout=timeout)
-    data = extract_json(raw)
-    if data is None:
-        raise ValueError(f"could not parse JSON array from model output:\n{raw[:500]}")
-
+def _cards_from_data(data: list, candidates: list[dict]) -> list[dict]:
     by_id = {c["id"]: c for c in candidates}
     cards = []
     for item in data:
@@ -167,6 +161,94 @@ def scout(open_problems_path, candidates_path, *, backend="cli", model=None,
             "notes": item.get("notes", ""),
         })
     return cards
+
+
+def _run_once(prompt, *, backend, model, timeout) -> list:
+    raw = llm.complete(prompt, system=SYSTEM, backend=backend, model=model, timeout=timeout)
+    data = extract_json(raw)
+    if data is None:
+        raise ValueError(f"could not parse JSON array from model output:\n{raw[:500]}")
+    return data
+
+
+def _mode(values):
+    return Counter(values).most_common(1)[0][0]
+
+
+def aggregate(runs: list[list[dict]]) -> list[dict]:
+    """Self-consistency: fold N independent scout runs into one stable card set.
+
+    Per candidate, the dimension scores are the MEDIAN across runs and the
+    composite is re-derived from them (still pure Python — never trusted from the
+    model); is_nugget, the gap mapping, and buy-vs-build are majority votes. Each
+    card also records `samples.eligible_votes` — how many of the N runs would have
+    kept it — so the borderline candidates the model flip-flops on stay VISIBLE
+    rather than being smoothed into a false-confident single number. This is what
+    turns the run-to-run recall jitter into a stable, inspectable result.
+    """
+    order = [c["id"] for c in runs[0]]
+    by_id: dict[str, list[dict]] = {}
+    for run in runs:
+        for c in run:
+            by_id.setdefault(c["id"], []).append(c)
+
+    out = []
+    for cid in order:
+        cs = by_id[cid]
+        n = len(cs)
+        is_nugget = sum(1 for c in cs if c["is_nugget"]) * 2 >= n
+        norm = {k: int(round(median([c["scores"][k] for c in cs]))) for k in WEIGHTS}
+        composite = compute_composite(norm)
+        eligible_votes = sum(
+            1 for c in cs
+            if c["is_nugget"] and c["mapped_problem"] and c["composite"] >= DEFAULT_THRESHOLD
+        )
+        # Representative prose: a run that agrees with the aggregated nugget call,
+        # nearest the aggregated composite.
+        agree = [c for c in cs if c["is_nugget"] == is_nugget] or cs
+        rep = min(agree, key=lambda c: abs(c["composite"] - composite))
+        out.append({
+            "id": cid,
+            "name": rep["name"],
+            "is_nugget": is_nugget,
+            "nugget": rep["nugget"],
+            "mapped_problem": _mode([c["mapped_problem"] for c in cs]),
+            "buy_vs_build": _mode([c["buy_vs_build"] for c in cs]),
+            "scores": norm,
+            "composite": composite,
+            "confidence": round(median([c["confidence"] for c in cs]), 2),
+            "why_now": rep["why_now"],
+            "first_step": rep["first_step"],
+            "notes": rep["notes"],
+            "samples": {"n": n, "eligible_votes": eligible_votes},
+        })
+    return out
+
+
+def scout(open_problems_path, candidates_path, *, backend="cli", model=None,
+          timeout=300, samples=1) -> list[dict]:
+    """Score candidates against the open problems. With samples>1, runs the model
+    N times and folds the runs together (self-consistency) so borderline scores
+    don't flap run-to-run."""
+    open_problems = Path(open_problems_path).read_text()
+    candidates = load_candidates(candidates_path)
+    prompt = _build_prompt(open_problems, candidates)
+
+    n = max(1, samples)
+    runs, failures = [], 0
+    for _ in range(n):
+        try:
+            runs.append(_cards_from_data(
+                _run_once(prompt, backend=backend, model=model, timeout=timeout), candidates))
+        except Exception as exc:  # a flaky/unparseable single sample shouldn't sink the batch
+            if n == 1:
+                raise
+            failures += 1
+            print(f"  [scout] sample dropped ({failures}/{n}): {type(exc).__name__}: {exc}",
+                  file=sys.stderr)
+    if not runs:
+        raise ValueError(f"all {n} scout samples failed to produce parseable output")
+    return runs[0] if len(runs) == 1 else aggregate(runs)
 
 
 def _confidence(v):

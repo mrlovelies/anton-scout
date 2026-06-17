@@ -92,33 +92,46 @@ decoy catch rate:  1.0    (caught every one of the 16 decoys/irrelevant)
 real recall:       0.73   (kept 8 of 11 genuine ideas this run)
 ```
 
-**Run it again and the recall moves — and that's the honest part.** Across four live runs
-it ranged **0.55–0.73** (median ~0.69), while **decoy-catch stayed at 1.0 every single
-time**. The two numbers tell you different things, and the split is the whole point:
+**The honest part — and the fix.** A single run's recall used to jitter between **0.55 and
+0.73**. A couple of real candidates sit right on the eligibility threshold, and the model
+scored them just over or just under it from one run to the next. Decoy-catch never budged
+off 1.0. So the recall number was half signal, half noise — not something worth shipping.
 
-- **Decoy-catch is the load-bearing number, and it's stable at 1.0** — across every run,
-  nothing hollow reached the digest. For a tool whose one job is "don't recommend hype,"
-  this is the number that has to hold, and it does.
-- **Recall is the guard number, and it honestly shows the cost.** The scout leans
-  *conservative*: it drops a stable handful of genuinely-real-but-marginal candidates every
-  run, and a couple more on stricter runs. A false-negative (skip a real idea you'll see
-  again) is the safe failure; a false-positive (a decoy in your digest) is the dangerous
-  one — so the error lands on the right side, by design. The recall variance is the real
-  limitation, and tightening it (calibrating the threshold, better borderline handling) is
-  the open work — not a number I'm going to round up.
+The fix is **self-consistency** (`--samples N`): run the model N times and fold the runs
+together — median dimension scores, majority votes on the nugget and the gap mapping,
+composite still re-derived in Python from the medians. The borderline candidates stop
+flapping. At `--samples 5` recall settles to a **stable 0.73** across repeated runs, and
+every card records how many of the N runs would have kept it, so the borderline ones stay
+visible instead of being averaged into false confidence (`c12: eligible 4/4`, a former
+flip-flopper now stably kept; `c16: 0/4`, consistently dropped). If one of the N calls
+returns garbage, that sample is dropped and the rest still aggregate — the batch doesn't
+crash on a single flaky response.
 
-**Reproduce it without a key.** The scored cards from a real run are committed, so the eval
-recomputes offline against the held-out labels:
+With the noise gone, what's left is the *real* limitation: a clean, named set of three
+consistently-dropped reals, not a random handful.
+
+- **Decoy-catch 1.0 is the load-bearing number,** and it holds every run — nothing hollow
+  reaches the digest. For a hype filter, that's the one that has to be perfect.
+- **Recall 0.73 is the guard number, and the three misses are honest.** One is the scout
+  under-rating a genuinely relevant technique (embedding-based contradiction surfacing —
+  the idea behind a sibling repo, scored too low here). One is a borderline call. One is a
+  label dispute: Litestream is replication, not really the multi-writer gap it's filed
+  under, so arguably the scout is right and the label is wrong. Fixing the under-scoring
+  and auditing the labels is the open work. Skipping a real idea you'll see again is the
+  safe way to fail; a decoy in your digest is the dangerous one.
+
+**Reproduce it without a key.** The scored cards from the committed self-consistency run are
+in the repo, so the eval recomputes offline against the held-out labels:
 
 ```
 python -m anton_scout eval --from-cache examples/real-run-27.json   # -> decoy 1.0 / recall 0.73
 ```
 
-The replay verifies the *scoring* (labels stripped, rates correctly derived), **not** a
-fresh model run — recall varies run-to-run as shown above, so regenerate with `--backend
-cli` to re-roll it. The `--backend mock` path CI uses is a deterministic keyword stub: it
-proves the **plumbing** (load → strip labels → score → gate), not the discrimination. The
-discrimination is the committed cli run above, which you can replay.
+The replay verifies the *scoring* (labels stripped, rates correctly derived), not a fresh
+model run — regenerate with `--backend cli --samples 5` to re-roll it. The `--backend mock`
+path CI uses is a deterministic keyword stub: it proves the **plumbing** (load → strip
+labels → score → gate), not the discrimination. The discrimination is the committed cli run
+above, which you can replay.
 
 A score only means something if the decoys are hard, so go look at
 [`candidates/seed.jsonl`](candidates/seed.jsonl) and add tougher ones. The
@@ -133,6 +146,9 @@ python -m anton_scout scout --out digest.md
 
 # Run the discriminator eval
 python -m anton_scout eval
+
+# Stabilize borderline scores with self-consistency (folds N runs: median scores, majority votes)
+python -m anton_scout eval --samples 5
 
 # See the pipeline run with zero auth (deterministic offline stub)
 python -m anton_scout scout --backend mock
@@ -172,8 +188,9 @@ by symlinking (or copying) `skill/` into `~/.claude/skills/scout`.
 ## Status & honest scope
 
 v0.1. What works: extract, map, buy-vs-build, score, the strict-eligibility digest,
-the decoy eval (decoy-catch 1.0 stable; real-recall 0.55–0.73 across runs on the current
-27-candidate set), a unit-tested core, and three backends. What it isn't, on purpose: it's one batched model call over candidates
+the decoy eval (decoy-catch 1.0 stable; real-recall 0.73 with `--samples` self-consistency,
+0.55–0.73 single-shot, on the current 27-candidate set), a unit-tested core, and three
+backends. What it isn't, on purpose: it's one batched model call over candidates
 you feed in. There's no crawler and no scheduler yet, which is the obvious next thing,
 and there's no auto-build, which is the safety boundary from up top rather than a
 missing feature. Buy-vs-build is a call the model surfaces for me to decide on, not

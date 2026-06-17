@@ -62,11 +62,12 @@ def score(cards: list[dict], labels: dict, *, threshold=digest.DEFAULT_THRESHOLD
 
 
 def run_eval(open_problems_path, candidates_path, *, backend="cli", model=None,
-             threshold=digest.DEFAULT_THRESHOLD, timeout=300) -> dict:
-    """Run the live scout, then score its cards against the held-out labels."""
+             threshold=digest.DEFAULT_THRESHOLD, timeout=300, samples=1) -> dict:
+    """Run the live scout (optionally with self-consistency over `samples` runs),
+    then score its cards against the held-out labels."""
     labels = _labels(candidates_path)
     cards = scout(open_problems_path, candidates_path,
-                  backend=backend, model=model, timeout=timeout)
+                  backend=backend, model=model, timeout=timeout, samples=samples)
     return score(cards, labels, threshold=threshold)
 
 
